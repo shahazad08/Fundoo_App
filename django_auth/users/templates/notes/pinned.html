@@ -1,0 +1,24 @@
+<h1>Notes which are Pinned</h1>
+{% for note in notes %}
+    {% if note.is_pinned == True %}
+        <h4>Id : {{ note.id }}</h4>
+        <h4>Title : {{ note.title }}</h4>
+        <h4>Description: {{ note.description }}</h4>
+        <h4>is_pinned: {{note.is_pinned }}</h4><br>
+
+    {% else %}
+        <!--<h4>Trash Notes is Empty</h4>-->
+    {% endif %}
+{% endfor %}
+
+{% for note in notes %}
+    {% if note.is_pinned == False %}
+        <h4>Id : {{ note.id }}</h4>
+        <h4>Title : {{ note.title }}</h4>
+        <h4>Description: {{ note.description }}</h4>
+        <h4>is_pinned: {{note.is_pinned }}</h4><br>
+
+    {% else %}
+        <!--<h4>Trash Notes is Empty</h4>-->
+    {% endif %}
+{% endfor %}

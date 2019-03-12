@@ -1,0 +1,13 @@
+<h1>Trash Notes</h1>
+{% for note in notes %}
+    {% if note.trash == True %}
+        <h4>Id : {{ note.id }}</h4>
+        <h4>Title : {{ note.title }}</h4>
+        <h4>Description: {{ note.description }}</h4>
+        <h4>Trash: {{note.trash }}</h4><br>
+      {% endif %}
+
+{% endfor %}
+
+
+

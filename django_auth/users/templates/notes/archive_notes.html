@@ -1,0 +1,9 @@
+<h1>Archive Notes</h1>
+{% for note in notes %}
+    {% if note.is_archived == True %}
+        <h4>Id : {{ note.id }}</h4>
+        <h4>Title : {{ note.title }}</h4>
+        <h4>Description: {{ note.description }}</h4>
+        <h4>Archived: {{note.is_archived }}</h4><br>
+    {% endif %}
+{% endfor %}

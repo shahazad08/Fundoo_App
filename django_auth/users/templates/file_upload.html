@@ -1,0 +1,9 @@
+{% block content %}
+<form method="post" enctype="multipart/form-data" action=/upload_profilenew/>{% csrf_token %}
+  <input type="file" name="pic" />
+
+<input type="text" name="tag" placeholder="tag" required />
+
+  <input type="submit" />
+</form>
+{% endblock %}

@@ -1,0 +1,20 @@
+<html>
+<head>
+  <title> Login Page </title>
+</head>
+<body>
+    <h3>Thank you for your email confirmation. Now you can login your account.<a>
+    <h2>Login </h2>
+    <form action="logins" method="post">
+      {% csrf_token %}
+    <label><b>Username</b></label>
+    <input type="email" placeholder="Enter Email" name="uname" required><br><br>
+
+    <label><b>Password</b></label>
+    <input type="password" placeholder="Enter Password" name="psw" required><br><br>
+
+    <button type="submit">Login</button>
+    </form>
+        <a href="{% url 'password_reset' %}">Forgot Password ?? click here to reset</a>
+</body>
+</html>

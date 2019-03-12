@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+{% load rest_framework %}
+
+<html><body>
+
+<h1>Profile - {{ profile.name }}</h1>
+
+<form action="{% url 'profile-detail' %}" method="POST">
+    {% csrf_token %}
+    {% render_form serializer %}
+    <input type="submit" value="Save">
+    <button type="submit" class="btn btn-default">Register</button>
+</form>
+
+</body></html>

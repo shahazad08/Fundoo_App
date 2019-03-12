@@ -1,0 +1,19 @@
+<form  method="POST" action="{% url 'addlabel' %}">
+      {% csrf_token %}
+    <label><b>Title</b></label>
+    <input type="text" placeholder="Enter Title" name="text" required><br><br>
+
+    <label><b>Description</b></label>
+    <input name="text" placeholder="Enter Description" required type="text"><br><br>
+
+    <label><b>Color</b></label>
+    <input name="text" placeholder="Enter Color" required type="text"><br><br>
+
+    <label><b>label</b></label>
+    <input name="text" placeholder="Enter label" required type="text"><br><br>
+
+
+
+    <button type="submit">Create</button>
+         <!--<a href="{% url 'addlabel' %}"></a>-->
+    </form>

@@ -1,0 +1,22 @@
+{% block content %}
+
+{% if messages %}
+<p class="messages">
+    {% for message in messages %}
+    <p style="color:red;" {% if message.tags %} class="{{ message.tags }}" {% endif %}>{{ message }}</p>
+    {% endfor %}
+</p>
+
+{% endif %}
+    <form  method="POST"  action='/log_user/'>
+      {% csrf_token %}
+    <label><b>Email</b></label>
+    <input type="email" placeholder="Enter Email" name="email" required><br><br>
+
+    <label><b>Password</b></label>
+    <input type="password" placeholder="Enter Password" name="password" required><br><br>
+
+    <button type="submit">Login</button>
+         <a href="{% url 'password_reset' %}">Forgot Password ?? click here to reset</a>
+    </form>
+{% endblock %}
