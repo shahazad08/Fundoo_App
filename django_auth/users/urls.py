@@ -25,14 +25,13 @@ urlpatterns = [
     path('log_user/', views.logins, name='log_user'),
     path('logout/', views.exit, name='logout'),
     path('upload_profilenew/', views.upload_profilenew, name='upload_profilenew'),
-
+    # path('upload_profileimage/', views.upload_profileimage, name='upload_profileimage'),
 
     url(r'^password_reset/$', auth_views.PasswordResetView.as_view(), name='password_reset'),
     url(r'^password_reset/done/$', auth_views.PasswordResetDoneView.as_view(), name='password_reset_done'),
     url(r'^reset/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})/$',
         auth_views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     url(r'^reset/done/$', auth_views.PasswordResetCompleteView.as_view(), name='password_reset_complete'),
-
 
 
     path('api/createnotes/', views.createnotes.as_view(), name='createnotes'),  # For Create
@@ -51,7 +50,7 @@ urlpatterns = [
     path('api/trash/', views.trash, name='trash'),  # Displays the Table data in a front view using jinga template
     path('api/page/', views.PostListAPIView.as_view(), name='page'),  # Paginate
     path('api/create_label/', views.create_label, name='create_label'),  # Createlabel
-    path('deletelabel/<int:pk>/', views.deletelabel, name='deletelabel'),  # Deletelabel
+    path('api/deletelabel/<int:pk>/', views.deletelabel, name='deletelabel'),  # Deletelabel
     path('api/updatelabel/', views.updatelabel.as_view(), name='updatelabel'),  # Updatelabel
     path('api/addLabelOnNote/<int:pk>/', views.addLabelOnNote.as_view(), name='addLabelOnNote'),
     path('api/getLabelOnNotes/', views.getLabelOnNotes.as_view(), name='getLabelOnNotes'),
@@ -66,7 +65,6 @@ urlpatterns = [
     path('api/deletecollaborator/', views.deletecollaborator.as_view(), name='deletecollaborator'),
     path('api/remainder/', views.remainder.as_view(), name='remainder'),
     #get_all_notes
-    path('api/get_all_notes/', views.get_all_notes, name='get_all_notes'),
     path('api/login/', views.Login.as_view(), name='login'),
 
 

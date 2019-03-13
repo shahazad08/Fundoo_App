@@ -45,15 +45,18 @@ from django.urls import reverse
 from django.core.cache.backends.base import DEFAULT_TIMEOUT  # Setting a time for a cache to store
 from .custom_decorators import custom_login_required
 from django.utils.decorators import method_decorator
-from .services import redis_information, upload_profilenew
+from .services import redis_information, upload_image
 from self import self
+import imghdr
 
 
 def home(request):
     return render(request, "home.html", {})  # home page
 
+
 def log_me(request):
     return render(request, 'user_login.html', {})
+
 
 def signup(request):
     if request.method == 'POST':  # IF method id POST
@@ -124,6 +127,7 @@ class Registerapi(CreateAPIView):
                 return JsonResponse(res)
         else:
             return JsonResponse(res)
+
 
 def activate(request, uidb64, token):
     try:
@@ -197,63 +201,566 @@ def exit(request):  # For a Logout
     # logout(request)
     return render(request, "home.html")
 
+
 class createnotes(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
+    '''
+        This Moudule is to create a note of a specific users
+    '''
+
+    @method_decorator(custom_login_required)  # Decorator is called with respective to token user
+    def dispatch(self, request, *args, **kwargs):
         res = {}
-        auth_user = request.user.id
+        auth_user = request.user.id  # get the id of a specific user through token
         try:
-            title = request.POST.get('title')
-            description = request.POST.get('description')
-            color = request.POST.get('color')
-            label = request.POST.get('label')
-            collaborate = request.POST.get('collaborate')
-            remainder = request.POST.get('remainder')
+            title = request.POST.get('title')  # get the title
+            description = request.POST.get('description')  # get the description
+            color = request.POST.get('color')  # get the color
+            label = request.POST.get('label')  # get the label
+            collaborate = request.POST.get('collaborate')  # get the collaborate
+            remainder = request.POST.get('remainder')  # get the raminder
             notes = CreateNotes(title=title, description=description, color=color, label=label, user_id=auth_user,
-                                remainder=remainder)
-            print("remi", notes.remainder)
-            print('***Notes****', notes)
-            if title != "" and description != "":
-                notes.save()
+                                remainder=remainder)  # assigned in the notes
+            if title != "" and description != "":  # if not null
+                notes.save()  # add in a db
                 res['message'] = 'Notes are added in a database'
                 res['success'] = True
                 res['data'] = notes.id
                 return JsonResponse(res, status=200)
-            if collaborate != "":
-                print("ff", notes.collaborate.add(auth_user))
-                notes.save()
+            else:  # else Unsuccess
                 res['message'] = 'Unssucesss'
                 res['success'] = False
-                return JsonResponse(res, status=204)
+                return JsonResponse(res, status=404)
         except Exception as e:
-            res['message'] = 'Unssucess'
-            return JsonResponse(res, status=204)
+            res['message'] = 'Something bad happend'
+            return JsonResponse(res, status=404)
 
-class createcollaborator(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):  # get the require pk
-        global note, user, note_user
-        a_user = request.user.id
+class getnote(APIView):
+    '''
+            This Moudule is to Read a notes of a specific user
+        '''
+
+    @method_decorator(custom_login_required)  # Decorator is called through a token
+    def dispatch(self, request):
         res = {}
-        res['message'] = 'Bad Happend'
+        a_user = request.user.id  # get the id though a token
+        try:
+            read_notes = CreateNotes.objects.filter(user=a_user).values()  # display the notes of a particular user
+            print("****", read_notes)
+            values = CreateNotes.collaborate.through.objects.filter(
+                user_id=a_user).values()  # display the users which are collaborated with the users
+            print("Values", values)
+            collab = []  # blank collaborator array
+            for i in values:  # assigned the values in i which are collaborated with the  particular user
+                collab.append(i['createnotes_id'])  # append with respect to the note id
+            collab_notes = CreateNotes.objects.filter(id__in=collab).values().order_by(
+                '-created_time')  # id__in indicates to take all the values
+            # print("collab Notes -------------", collab_notes)
+            merged = read_notes | collab_notes  # as to merging the 2 query sets into one
+            print("***", merged)
+            l = []  # Converting the query sets to a json format
+            for i in merged:
+                l.append(i)
+
+            token = redis_information.get_token(self, 'token')  # Redis Cache GET
+            print('Token from a redis cache------------------', token)
+            return JsonResponse(l, safe=False)
+        except Exception as e:  # Excaption is Handled
+            res['message'] = "User Not Exist"
+            res['sucess'] = False
+            return JsonResponse(res, status=404)
+
+
+class deletenote(APIView):
+    """
+    This module is to delete a note of a specific user
+    """
+
+    @method_decorator(custom_login_required)  # Get the decorator of a specific user
+    def dispatch(self, request):
+        auth_user = request.user.id
+        res = {}
+        res['message'] = 'Something bad happened'
         res['success'] = False
         try:
-            id = request.POST.get('id')
-            if id:
+            id = request.POST.get('id', None)  # Request the id to be deleted, user can also kept it None
+            if id is None:  # If id is None
+                raise Exception('Id is required')  # Raise the Exception
+            else:
+                note = CreateNotes.objects.get(pk=id,
+                                               user=auth_user)  # get requested id from a Note, and a particular user
+                if note.trash:  # If note.trash is True
+                    res['data'] = note.id
+                    res['message'] = 'Notes is in Trash'  # Means Note is in a Trash
+                    res['success'] = True
+                    return JsonResponse(res, status=status.HTTP_201_CREATED)  # Display the data
+                else:  # if trash is false, change to true
+                    note.trash = True
+                    note.save()  # save in a db
+                    res['data'] = note.id
+                    res['message'] = 'Note has been moved to trash'
+                    res['success'] = True
+                    return JsonResponse(res, status=status.HTTP_201_CREATED)  # Display the data
+        except Exception as e:
+            print('Note doent exists')
+            res['message'] = 'Note doesnt exists'  # Exception is handled
+            res['success'] = False
+            return JsonResponse(res, status=404)
+
+
+class delete_from_trash(APIView):
+    '''
+       This module is to delete a note of a specific user
+       '''
+
+    @method_decorator(custom_login_required)
+    def dispatch(self, request):
+        auth_user = request.user.id
+        res = {}
+        res['message'] = 'Something bad happened'
+        res['success'] = False
+        try:
+            id = request.POST.get('id', None)  # Get the id form a user
+            if id is None:  # if id is None
+                raise Exception('Id is required')  # Raise the
+            else:
+                note = CreateNotes.objects.get(pk=id, user=auth_user)  # get requested id from a Note
+                if note.trash:  # if is_deleted is true
+                    note.delete()  # delete it
+                    res['message'] = 'Note has been deleted from trash'
+                    res['success'] = True
+                    return JsonResponse(res, status=status.HTTP_201_CREATED)
+                else:
+                    res['message'] = 'Its in a Dashboard'  # Notes is in a trash
+                    res['success'] = False
+                    return JsonResponse(res, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            print('Note doent exists')
+            res['message'] = 'Note doesnt exists'
+            res['success'] = False
+            return JsonResponse(res, status=404)
+
+
+class restorenote(APIView):
+    """
+          This module is to restore a note of a specific user
+          """
+
+    @method_decorator(custom_login_required)
+    def dispatch(self, request):
+        auth_user = request.user.id
+        res = {}
+        res['message'] = 'Something bad happened'
+        res['success'] = False
+        try:
+            id = request.POST.get('id', None)  # Get a Note if from a User
+            if id is None:  # If Id is None
+                raise Exception('Id is required')
+            else:
+                note = CreateNotes.objects.get(pk=id, user=auth_user)  # Get a requested Note
+                if note.trash:  # If note.trash is true, change it to false
+                    note.trash = False
+                    note.save()  # save in a db
+                    res['message'] = "Selected Note has been Restored"
+                    res['success'] = True
+                    res['data'] = note.id
+                    return JsonResponse(res, status=204)
+                else:
+                    res['message'] = "Restored Note"  # Note is in a all ready restored
+                    res['success'] = True
+                    res['data'] = note.id
+                    return JsonResponse(res, status=204)
+        except Exception as e:  # Handle the Excaption
+            print('Note doent exists')
+            res['message'] = 'Note doesnt exists'
+            return JsonResponse(res, status=404)
+
+
+class updatenote(APIView):
+    """
+        This module is to Update a note of a specific user
+    """
+
+    @method_decorator(custom_login_required)  # Get a decorator
+    def dispatch(self, request):
+        auth_user = request.user.id  # Get a user
+        res = {}
+        res['message'] = 'Something bad happened'
+        res['success'] = False
+        try:
+            id = request.POST.get('id', None)  # Accept a Id to be accepted
+            if id is None:  # If id is None
+                raise Exception('Id is required')  # Raise the exception
+            else:
+                notes = CreateNotes.objects.get(pk=id, user=auth_user)  # Update the particular note from a user
+                title = request.POST.get('title')  # Updates the tile or any user fields
+                des = request.POST.get('description')
+                color = request.POST.get('color')
+                remainder = request.POST.get('remainder')
+
+                notes.title = title  # Assign the updated fields to a requsted note
+                notes.description = des
+                notes.color = color
+                notes.remainder = remainder
+                notes.save()  # save in a db
+                res['message'] = "Update Successfully"
+                res['success'] = True
+                return JsonResponse(res, status=204)
+        except Exception as e:  # Handle the exception
+            print(e)
+            res['message'] = 'Note doesnt exists'
+            res['sucess'] = 'False'
+            return JsonResponse(res, status=404)
+
+
+class archivenote(APIView):  # Delete a Note
+    """
+    This module is to archive a note of a specific user
+    """
+
+    @method_decorator(custom_login_required)  # Get a decorator
+    def dispatch(self, request):
+        auth_user = request.user.id  # Request for a specific user
+        res = {}
+        res['data'] = {}  # If any fault Exception, shows the message
+        res['message'] = 'Something bad happened'
+        res['success'] = False
+        try:
+            id = request.POST.get('id', None)
+            if id is None:
+                raise Exception('id is required')
+            else:
+                note = CreateNotes.objects.get(pk=id, user=auth_user)  # get particular note from a id
+                if note.is_archived == False:  # if archived is false, change it to true, as to move in a archived
+                    note.is_archived = True
+                    note.save()  # save in a db
+                    res['message'] = "Selected Note has been moved to Archive"
+                    res['success'] = True
+                    res['data'] = note.id
+                    return JsonResponse(res, status=200)  # return result
+                else:
+                    note.is_archived = False  # if its not in a archive then note is in Dashboard
+                    note.save()
+                    res['message'] = "Note has been moved to Dashboard"
+                    res['success'] = True
+                    res['data'] = note.id
+                    return JsonResponse(res, status=204)
+
+        except Exception as e:  # catch the exception as if the note exists
+            print('Note doent exists')
+            res['message'] = 'Note doesnt exists'
+            return JsonResponse(res, status=404)
+
+
+class colornote(APIView):  # Delete a Note
+    """
+     This module is set a color to a note of a specific user
+    """
+
+    @method_decorator(custom_login_required)  # Get a decorator
+    def dispatch(self, request):
+        auth_user = request.user.id  # Get a specific user
+        res = {}
+        res['message'] = 'Something bad happened'  # If any fault Exception, shows the message
+        res['success'] = False
+        try:
+            id = request.POST.get('id', None)  # set a id of a note
+            if id is None:  # if id is None
+                raise Exception('Id is required')  # raise a exception
+            else:
+                note = CreateNotes.objects.get(pk=id, user=auth_user)  # get a selected note from a user
+                note.color = request.POST.get('color')  # request the color from notes model, for change
+                note.save()  # save to db
+                res['message'] = "Color has been Changed."  # message for change color
+                res['success'] = True
+                res['data'] = note.id
+                return JsonResponse(res, status=204)  # return result
+        except Exception as e:
+            res['message'] = 'Note doesnt exists'  # Handles Exception message if note doesnot exists
+            return JsonResponse(res, status=404)
+
+
+class ispinned(APIView):
+    """
+     This module is set a pinned to a note of a specific user
+    """
+
+    @method_decorator(custom_login_required)  # Get a decorator
+    def dispatch(self, request):
+        auth_user = request.user.id  # get a specific user
+        res = {}
+        res['message'] = 'Something bad happened'  # If any fault Exception, shows the message
+        res['success'] = False
+        try:
+            id = request.POST.get('id', None)  # get a id of a user
+            if id is None:  # If id is None
+                raise Exception('Id is required')  # Raise a Exception
+            else:
+                note = CreateNotes.objects.get(pk=id, user=auth_user)  # get a requested pk
+                if note.is_pinned == False:  # if not pinned
+                    note.is_pinned = True  # change it to pin
+                    note.save()  # save in a db
+                    res['message'] = "Notes has been Pinned to Top."  # message in a SMD format
+                    res['success'] = True
+                    res['data'] = note.id
+                    return JsonResponse(res, status=200)
+                else:
+                    note.is_pinned = False  # if not pinned, save as it is
+                    note.save()
+                    res['message'] = "Notes has been Move to Unpinned"
+                    res['success'] = False
+                    res['data'] = note.id
+                    return JsonResponse(res, status=204)
+        except Exception as e:  # catch exception if note doesnt exists
+            res['message'] = 'Note doesnt exists'
+            return JsonResponse(res, status=404)
+
+
+class copynote(APIView):
+    """
+        This module is set a copy of a note of a specific user
+    """
+
+    @method_decorator(custom_login_required)  # Get a decorator
+    def dispatch(self, request):
+        auth_user = request.user.id  # get note with given id
+        res = {}
+        res['message'] = 'Something bad happened'
+        res['success'] = False
+        try:
+            id = request.POST.get('id', None)  # Get a note id of a specific user
+            if id is None:  # If id is None
+                raise Exception('Id is required')  # Raise a exception if id not present
+            else:
+                note = CreateNotes.objects.get(pk=id, user=auth_user)  # Accept a note pk
+                note.id = None  # create pk as a none
+                note.save()  # save in a db
+                res['message'] = "Note is Coped "  # Note is copied
+                res['success'] = True
+                res['data'] = note.id
+                return JsonResponse(res, status=204)
+        except Exception as e:
+            res['message'] = 'Note doesnt exists'
+            return JsonResponse(res, status=404)
+
+
+@custom_login_required
+def create_label(request):
+    """
+          This module is create a Label of a specific user
+    """
+    a_user = request.user_id.id
+    res = {}
+    res['message'] = 'Something bad happend'
+    res['success'] = True
+    try:
+        label_name = request.POST.get('label_name', None)
+        labels = Labels(label_name=label_name, user_id=a_user)
+        if label_name != "":
+            labels.save()
+            res['data'] = labels.id
+            res['message'] = 'Labels are added in a database'
+            res['success'] = True
+            return JsonResponse(res, status=200)
+        else:
+            res['message'] = 'Unssucess'
+            res['success'] = False  # in response return data in json format
+            return JsonResponse(res, status=400)
+    except Exception as e:
+        res['message'] = 'Unssucess'
+        res['success'] = False  # in response return data in json format
+        return JsonResponse(res, status=404)
+
+
+@custom_login_required
+def deletelabel(request, pk):  # Delete a Note
+    """
+            This module is delete a Label of a specific user
+    """
+    a_user = request.user_id.id
+    res = {}
+    print('test user', request.user_id)
+    res['message'] = 'Something bad happened'
+    res['success'] = False
+    try:
+        if pk: # if label pk
+            label = Labels.objects.get(pk=pk, user=a_user)  # get requested id from a Labels
+            res['data'] = label.id # Display the id that is to be delete
+            label.delete()  # delete the label
+            res['message'] = "Label has been deleted"
+            res['success'] = True
+            return JsonResponse(res, status=200)  # Display the data
+        else:
+            res['message'] = "Unsuccess" # if something bad happend display unsuccess
+            res['success'] = False
+            return JsonResponse(res, status=200)  # Display the data
+    except Exception as e:
+        res['message'] = 'Label doesnt exists' # Handle the exception when label not exists
+        return JsonResponse(res, status=404)
+
+class updatelabel(APIView):
+    """
+        This module is update a Label of a specific user
+       """
+    @method_decorator(custom_login_required)
+    def dispatch(self, request):
+        auth_user = request.user.id
+        res = {}
+        res['message'] = 'Something bad happened'
+        res['success'] = False
+        try:
+            id = request.POST.get('id', None)
+            if id is None:
+                raise Exception('Id is required')
+            else:
+                labels = Labels.objects.get(pk=id, user_id=auth_user)
+                print("label", labels)
+                label_name = request.POST.get('label_name')
+                labels.label_name = label_name
+                print('Titles', labels.label_name)
+                res['message'] = "Update Successfully"
+                res['success'] = True
+                labels.save()
+                return JsonResponse(res, status=204)
+        except Exception as e:
+            print(e)
+            res['message'] = 'Label doesnt exists'
+            return JsonResponse(res, status=404)
+
+
+class addLabelOnNote(APIView):
+    """
+        This module is to add a label to a particular note of a specific user
+     """
+    @method_decorator(custom_login_required) # Get a decorator
+    def dispatch(self, request, pk):    # request a particular note of a specific user
+        auth_user = request.user.id # get a requested if from a token
+        res = {}
+        res['message'] = 'Something bad happened' # raise a exception when some unhandled exception occurs
+        res['success'] = False
+        try:
+            if pk: # if note pk
+                note = CreateNotes.objects.get(pk=pk, user=auth_user)  # reterieve the pk of a particular note
+                # according to a specific user
+                id = request.POST.get('id')  # retrieve the id of a particular label
+                label = Labels.objects.get(id=id, user_id=auth_user) # get a label of a particular user id
+                maplabel = MapLabel.objects.filter(note_id=note, label_id=label)  # filter the note and label
+                if len(maplabel) == 0:  # if maplabel field is empty
+                    obj = MapLabel(note_id=note, label_id=label)  # assigned the notes and a label using model by
+                    # creating the oject
+                    obj.save()  # save the object
+                    res['data'] = note.id  # message of passing data in a SMD format
+                    res['message'] = 'Labels are added to a particular note'
+                    res['success'] = True
+                    return JsonResponse(res, status=status.HTTP_201_CREATED)
+                else:
+                    res['message'] = ' Labels Allready added'  # Something wrong
+                    res['success'] = False
+                    return JsonResponse(res, status=status.HTTP_201_CREATED)
+            else:
+                res['message'] = ' Note Doesnt Exists'  # Something wrong
+                res['success'] = False
+                return JsonResponse(res, status=status.HTTP_404_CREATED)
+        except CreateNotes.DoesNotExist: # Handles Exception when notes are not present
+            res['message'] = 'Note doesnt exists'
+            return JsonResponse(res, status=404)
+        except Exception as e:
+            print(e)
+            return JsonResponse(res, status=404)
+
+
+class getLabelOnNotes(APIView):
+    # @method_decorator(custom_login_required)
+    """
+           This module is to get a label to a particular note
+       """
+    def post(self, request):
+        # auth_user = request.user.id
+        res = {}
+        res['message'] = 'Something bad happened'
+        res['success'] = False
+        try:
+            label_id = request.POST.get('label_id')
+            label = MapLabel.objects.filter(label_id=label_id).values() # Filter down a queryset based on a model's=
+            print("Labelss", label)
+            l = []  # Converting the query sets to a json format
+            for i in label:
+                l.append(i)
+            return JsonResponse(l, safe=False)
+        except Exception as e:
+            print(e)
+
+class removeLabelonNote(APIView):
+    """
+        This module is to add a label to a particular note of a specific user
+    """
+    @method_decorator(custom_login_required) # Get a decorator
+    def dispatch(self, request, pk):  # request a particular note of a specific user
+        auth_user = request.user.id # get a id of from a header token
+        res = {}
+        res['message'] = 'Something bad happened'  # raise a exception when unhandled occurs
+        res['success'] = False
+        try:
+            if pk: # if  requested pk
+                note = CreateNotes.objects.get(pk=pk, user=auth_user)  # retrieve the pk of a particular note
+                id = request.POST.get('id')  # retrieve the id of a particular label
+                label = Labels.objects.get(id=id, user_id=auth_user) # retrieve the label of a particular user
+                maplabel = MapLabel.objects.filter(note_id=note, label_id=label)  # filter the note and label
+                maplabel.delete() # delete a requested note
+                res['message'] = 'Labels are remove to a requested note'
+                res['success'] = True
+                return JsonResponse(res, status=status.HTTP_201_CREATED)
+        except CreateNotes.DoesNotExist: # Handled the exception
+            res['message'] = 'Note doesnt exists'
+            return JsonResponse(res, status=404)
+        except Exception as e:
+            print(e)
+            return JsonResponse(res, status=404)
+
+
+class remainder(APIView): # get the remainder
+    def get(self):
+        res = {}
+        remainder_fields = CreateNotes.objects.filter(remainder__isnull=False).values()  # check the remainder field
+        # is not null
+        try:
+            if remainder_fields: # if remainder
+                remainder = []
+                for i in remainder_fields: # convert the  query set to a Json format
+                    remainder.append(i)
+                return JsonResponse(remainder, safe=False)
+            else: # No remainder
+                res['message'] = "No remainder set"
+                res['success'] = 'False'
+                return JsonResponse(res, safe=False)
+        except Exception as e:
+            res['message'] = " Note Doesnt Exists"
+            res['success'] = 'False'
+            return JsonResponse(res, safe=False)
+
+
+
+class createcollaborator(APIView):
+    """
+        This module is to create a collaborator to a particular note of a specific user
+    """
+    @method_decorator(custom_login_required)
+    def dispatch(self, request):  # get the require pk
+        a_user = request.user.id
+        print(a_user)
+        res = {}
+        res['message'] = 'Something bad happend'
+        res['success'] = False
+        try:
+            id = request.POST.get('id', None) # get the id of a specific user
+            if id is None:  # if id is None
+                raise Exception('id required')   # raise the exception
+            else: # if not same delete it
                 note = CreateNotes.objects.get(pk=id, user=a_user)  # get the required id of a note
-                print('------------------------', note)
                 note_user = note.user.id  # Get the Note User ID
                 note_id = note.id
-                print("NI", note_id)
-                print("Note User ID", note_user)
                 collaborate = request.POST.get('collaborate')  # Accept a id of a new user
-                print(collaborate)
                 user = User.object.get(id=collaborate)  # get the details of a user through id
-                values = CreateNotes.collaborate.through.objects.filter(
-                    user_id=a_user).values()  # display the users which are collaborated with the users
-            val = CreateNotes.collaborate.through.objects.filter(createnotes_id=note.id,user_id=user.id).values()
-            print("bl", val)
-
+                values = CreateNotes.collaborate.through.objects.filter(user_id=a_user).values()  # display the users which are collaborated with the users
             if note_user == user.id:  # If note user_id and collaborate user is same
                 res['message'] = 'Cannot Collaborate to the same User'
                 res['success'] = False
@@ -272,564 +779,44 @@ class createcollaborator(APIView):
                 res['data'] = note.id
                 return JsonResponse(res, status=200)
         except Exception as e:
-            print('User doent exists')
-            res['message'] = 'User doesnt exists'
+            res['message'] = 'Note doesnt exists'
             print(e)
             return JsonResponse(res, status=404)
-
 
 class deletecollaborator(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        auth_user = request.user.id
-        res = {}
-        res['message'] = 'User Not Exist'
-        res['success'] = False
-        try:
-            id = request.POST.get('id')
-            if id:
-                note = CreateNotes.objects.get(pk=id)  # get the required id of a note
-                note_user = note.user.id
-                if auth_user == note_user:
-                    print('------------------------', note)
-                    auth_user = note.user.id  # Use vairable b as a Note User
-                    collaborate = request.POST.get('collaborate')  # Accept a id of a new user
-                    print(collaborate)
-                    user = User.object.get(id=collaborate)  # get the details of a user through id
-                    if auth_user == user.id:
-                        res['message'] = 'Cannot Collaborate to the same User'
-                        res['success'] = False
-                        return JsonResponse(res, status=400)
-                    else:
-                        res['message'] = 'Success'
-                        res['success'] = True
-                        res['data'] = note.id
-                        note.collaborate.remove(user)  # adds the user to the note
-                        note.save()
-                        return JsonResponse(res, status=200)
-            else:
-                res['message'] = 'Note Doesnt Exists'
-                res['success'] = False
-                return JsonResponse(res, status=400)
-        except Exception as e:  # if user not exists
-            print('User doent exists')
-            res['message'] = 'User doesnt exists'
-            return JsonResponse(res, status=404)
-
-        except Exception as e:  # if user not exists
-            print('Note doent exists')
-            res['message'] = 'Note doesnt exists'
-            return JsonResponse(res, status=404)
-
-
-class getnote(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        res = {}
-        a_user = request.user.id
-        try:
-            if a_user:
-                read_notes = CreateNotes.objects.filter(user=a_user).values()  # display the notes of a particular user
-                print("****", read_notes)
-                values = CreateNotes.collaborate.through.objects.filter(
-                    user_id=a_user).values()  # display the users which are collaborated with the users
-                print("Values", values)
-                collab = []  # blank collaborator array
-                for i in values:  # assigned the values in i which are collaborated with the  particular user
-                    collab.append(i['createnotes_id'])  # append with respect to the note id
-                collab_notes = CreateNotes.objects.filter(id__in=collab).values().order_by(
-                    '-created_time')  # id__in indicates to take all the values
-                # print("collab Notes -------------", collab_notes)
-                merged = read_notes | collab_notes  # as to merging the 2 query sets into one
-                print("***", merged)
-                l = []  # Converting the query sets to a json format
-                for i in merged:
-                    l.append(i)
-
-                token = redis_information.get_token(self, 'token')  # Redis Cache GET
-                print('Token from a redis cache------------------', token)
-                return JsonResponse(l, safe=False)
-        except Exception as e:
-            res['message'] = "User Not Exist"
-            res['sucess'] = False
-            return JsonResponse(res, status=404)
-
-
-class deletenote(APIView):  # Delete a Note
     """
-    Retrieve, update or delete a event instance.
-    """
-    @method_decorator(custom_login_required)
-    def dispatch(self, request, *args, **kwargs):
-        print("dsf", request.user)
-        auth_user = request.user.id
-        print("Authentication User", auth_user)
+        This module is to delete a collaborator to a particular note of a specific user
+     """
+    @method_decorator(custom_login_required) # get the decorator from a token
+    def dispatch(self, request):
+        auth_user = request.user.id # get the requested id
         res = {}
-        # res['data'] = {}
-        res['message'] = 'Something bad happened'
+        res['message'] = 'Something bad happend' # raise the exception if bad happens
         res['success'] = False
         try:
-            id = request.POST.get('id')
-            note = CreateNotes.objects.get(pk=id, user=auth_user)  # get requested id from a Note
-            if note.trash == False:  # if trash is false, change to true
-                note.trash = True
-                note.save()  # save in a db
-                res['data'] = note.id
-                res['message'] = 'Note has been moved to trash'
-                res['success'] = True
-                return JsonResponse(res, status=status.HTTP_201_CREATED)  # Display the data
+            id = request.POST.get('id', None)   # get the requested id of a specific user
+            if id is None:  # if id is none
+                raise Exception('id is required')
             else:
-                res['data'] = note.id
-                res['message'] = 'Notes is in Trash'
-                res['success'] = True
-                return JsonResponse(res, status=status.HTTP_201_CREATED)  # Display the data
-        except Exception as e:
-            print('Note doent exists')
-            res['message'] = 'Note doesnt exists'
-            res['success'] = False
-            return JsonResponse(res, status=404)
-
-
-class delete_from_trash(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        auth_user = request.user.id
-        print("Authentication User", auth_user)
-        res = {}
-        res['data'] = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            id = request.POST.get('id')
-            if id:
-                note = CreateNotes.objects.get(pk=id,user=auth_user)  # get requested id from a Note
-                note.is_deleted = True  # if is_deleted is true
-                note.delete()  # delete it
-                res['data'] = note.id
-                res['message'] = 'Note has been deleted from trash'
-                res['success'] = True
-                return JsonResponse(res, status=status.HTTP_201_CREATED)
-            else:
-                res['message'] = 'Notes is not present'
-                res['success'] = True
-                return JsonResponse(res, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            print('Note doent exists')
-            res['message'] = 'Note doesnt exists'
-            res['success'] = False
-            return JsonResponse(res, status=404)
-
-
-class restorenote(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        auth_user = request.user.id
-        print("Authentication User", auth_user)
-        res = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            id = request.POST.get('id')
-            note = CreateNotes.objects.get(pk=id, user=auth_user)
-            if note.trash == True:
-                note.trash = False
-                note.save()
-                res['message'] = "Selected Note has been Restored"
-                res['success'] = True
-                res['data'] = note.id
-                return JsonResponse(res, status=204)
-            else:
-                res['message'] = 'Unable to find Note. Missing Note ID'
-                return JsonResponse(res, status=200)
-        except CreateNotes.DoesNotExist:
-            print('Note doent exists')
-            res['message'] = 'Note doesnt exists'
-            return JsonResponse(res, status=404)
-
-
-class updatenote(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        auth_user = request.user.id
-
-        # serializer_class = NoteSerializer
-        # queryset = CreateNotes.objects.all()
-        res = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            id = request.POST.get('id')
-            notes = CreateNotes.objects.get(pk=id, user=auth_user)
-            print("Not", notes)
-            title = request.POST.get('title')
-            des = request.POST.get('description')
-            color = request.POST.get('color')
-            remainder = request.POST.get('remainder')
-
-            notes.title = title
-            print('Titles', notes.title)
-            notes.description = des
-            notes.color = color
-            notes.remainder = remainder
-            notes.save()
-
-            res['message'] = "Update Successfully"
-            res['success'] = True
-            return JsonResponse(res, status=204)
-        #
-        except Exception as e:
-            print(e)
-            res['message'] = 'Note doesnt exists'
-            res['sucess'] = 'False'
-            return JsonResponse(res, status=404)
-
-
-class archivenote(APIView):  # Delete a Note
-    """
-    Retrieve, update or delete a event instance.
-    """
-
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        auth_user = request.user.id
-        res = {}
-        res['data'] = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            id = request.POST.get('id')
-            if id:
-                note = CreateNotes.objects.get(pk=id, user=auth_user)  # get particular note from a id
-                if note.is_archived == False:  # if archived is false, change it to true, as to move in a archived
-                    note.is_archived = True
-                    note.save()  # save in a db
-                    res['message'] = "Selected Note has been moved to Archive"
-                    res['success'] = True
-                    res['data'] = note.id
-                    return JsonResponse(res, status=204)  # return result
-                else:
-                    note.is_archived = False
-                    note.save()
-                    res['message'] = "Note has been moved to Dashboard"
+                note = CreateNotes.objects.get(pk=id, user=auth_user) # note id with a specific user
+                auth_user = note.user.id  # Use vairable b as a Note User
+                collaborate = request.POST.get('collaborate')  # Accept a id of a new user
+                print(collaborate)
+                user = User.object.get(id=collaborate)  # get the details of a users from a User table
+                if auth_user == user.id: # check for a collaborator when id is same
+                    res['message'] = 'Cannot Collaborate to the same User'
                     res['success'] = False
-                    res['data'] = note.id
-                    return JsonResponse(res, status=204)
-            else:
-                res['message'] = "Unsuccess"
-                res['success'] = False
-                return JsonResponse(res, status=204)
-
-        except CreateNotes.DoesNotExist:  # catch the exception as if the note exists
-            print('Note doent exists')
-            res['message'] = 'Note doesnt exists'
-            return JsonResponse(res, status=404)
-
-
-
-class colornote(APIView):  # Delete a Note
-    """
-    Retrieve, update or delete a event instance.
-    """
-
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        auth_user = request.user.id
-        res = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            id = request.POST.get('id')
-            if id:
-                note = CreateNotes.objects.get(pk=id, user=auth_user)
-                note.color = request.POST.get('color')  # request the color from notes model, for change
-                note.save()  # save to db
-                res['message'] = "Color has been Changed."  # message for change color
-                res['success'] = True
-                res['data'] = note.id
-                return JsonResponse(res, status=204)  # return result
-            else:
-                res['message'] = "No Notes."  # message for change color
-                res['success'] = True
-                return JsonResponse(res, status=204)
-        except CreateNotes.DoesNotExist:
-            print('Note doent exists')
-            res['message'] = 'Note doesnt exists'  # message if note doesnot exists
-            return JsonResponse(res, status=404)
-
-
-class ispinned(APIView):  # Delete a Note
-    """
-    Retrieve, update or delete a event instance.
-    """
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        auth_user = request.user.id
-        res = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            id = request.POST.get('id')
-            if id:
-                note = CreateNotes.objects.get(pk=id, user=auth_user)  # get a requested pk
-                if note.is_pinned == False:  # if not pinned
-                    note.is_pinned = True  # change it to pin
-                    note.save()  # save in a db
-                    res['message'] = "Notes has been Pinned to Top."  # message in a SMD format
+                    return JsonResponse(res, status=404) # return status
+                else:   # if not same delete it
+                    res['message'] = 'Deleted'  # message in a SMD format
                     res['success'] = True
                     res['data'] = note.id
+                    note.collaborate.remove(user)  # remove the user
+                    note.save() # save in db
                     return JsonResponse(res, status=200)
-                else:
-                    note.is_pinned = False  # if not pinned, save as it is
-                    note.save()
-                    res['message'] = "Notes has been Move to Unpinned"
-                    res['success'] = False
-                    res['data'] = note.id
-                    return JsonResponse(res, status=204)
-        except CreateNotes.DoesNotExist:  # catch exception if note doesnt exists
-            print('Note doent exists')
+        except Exception as e:  # if user not exists
             res['message'] = 'Note doesnt exists'
             return JsonResponse(res, status=404)
-
-
-
-class copynote(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        auth_user = request.user.id
-        res = {}  # get note with given id
-        # res['data'] = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            id = request.POST.get('id')
-            if id:
-                note = CreateNotes.objects.get(pk=id, user=auth_user)  # Accept a note pk
-                note.id = None  # create pk as a none
-                note.save()
-                res['message'] = "Note is Coped "
-                res['success'] = True
-                res['data'] = note.id
-                return JsonResponse(res, status=204)
-            else:
-                res['message'] = "Missing Notes"
-                res['success'] = False
-                return JsonResponse(res, status=204)
-        except CreateNotes.DoesNotExist:
-            print('Note doent exists')
-            res['message'] = 'Note doesnt exists'
-            return JsonResponse(res, status=404)
-        except Exception as e:
-            print(e)
-            return JsonResponse(res, status=404)
-
-
-@custom_login_required
-def create_label(request):
-    a_user = request.user_id.id
-    res = {}
-    res['message'] = 'Something bad happend'
-    res['success'] = True
-    try:
-        label_name = request.POST.get('label_name')
-        labels = Labels(label_name=label_name, user_id=a_user)
-        note_user = labels.user_id
-        print("Note", note_user)
-        if a_user == note_user:
-            print('-------', labels)
-            if label_name != "":
-                labels.save()
-                res['data'] = labels.id
-                res['message'] = 'Labels are added in a database'
-                res['success'] = True
-                return JsonResponse(res, status=200)
-            else:
-                res['message'] = 'Unssucess'
-                res['success'] = False  # in response return data in json format
-                return JsonResponse(res, status=400)
-        else:
-            res['message'] = 'Invalid User'
-            res['success'] = False  # in response return data in json format
-            return JsonResponse(res, status=204)
-    except Exception as e:
-        res['message'] = 'Unssucess'
-        res['success'] = False  # in response return data in json format
-        return JsonResponse(res, status=404)
-
-
-@custom_login_required
-def deletelabel(request, pk):  # Delete a Note
-    a_user = request.user_id.id
-    res = {}
-    print('test user', request.user_id)
-    # res['data'] = {}
-    res['message'] = 'Something bad happened'
-    res['success'] = False
-    try:
-        if pk:
-            label = Labels.objects.get(pk=pk, user=a_user)  # get requested id from a Labels
-            res['data'] = label.id
-            label.delete()
-            res['message'] = "Label has been deleted"
-            res['success'] = True
-            return JsonResponse(res, status=200)  # Display the data
-        else:
-            res['message'] = "Unsuccess"
-            res['success'] = False
-            return JsonResponse(res, status=200)  # Display the data
-    except Exception as e:
-        print('Label doesnt exists')
-        res['message'] = 'Label doesnt exists'
-        res['success'] = False
-        return JsonResponse(res, status=404)
-
-
-class updatelabel(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        auth_user = request.user.id
-
-        # serializer_class = NoteSerializer
-        # queryset = CreateNotes.objects.all()
-        res = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            id = request.POST.get('id')
-            labels = Labels.objects.get(pk=id, user_id=auth_user)
-            print("label", labels)
-            label_name = request.POST.get('label_name')
-
-            labels.label_name = label_name
-            print('Titles',labels.label_name)
-            res['message'] = "Update Successfully"
-            res['success'] = True
-            labels.save()
-            return JsonResponse(res, status=204)
-        #
-        except Exception as e:
-            print(e)
-            res['message'] = 'Note doesnt exists'
-            res['sucess'] = 'False'
-            return JsonResponse(res, status=404)
-
-
-class addLabelOnNote(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request, pk):
-        auth_user = request.user.id
-        print("au", auth_user)
-        res = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            if pk:
-                note = CreateNotes.objects.get(pk=pk, user=auth_user)  # reterieve the pk of a particular note
-                id = request.POST.get('id')  # reterive the id of a particular label
-                label = Labels.objects.get(id=id,user_id=auth_user)
-                print("**********", label)
-                maplabel = MapLabel.objects.filter(note_id=note, label_id=label)  # filter the note and label
-                print("....", maplabel)
-                if len(maplabel) == 0:  # if maplabel field is empty
-                    obj = MapLabel(note_id=note,
-                                   label_id=label)  # assigned the notes and a label using model by creating the oject
-                    obj.save()  # save the object
-                    res['data'] = note.id  # message of passing data in a SMD format
-                    res['message'] = 'Labels are added to a particular note'
-                    res['success'] = True
-                    return JsonResponse(res, status=status.HTTP_201_CREATED)
-                else:
-                    res['message'] = 'Allready added'  # Something wrong
-                    res['success'] = False
-                    return JsonResponse(res, status=status.HTTP_201_CREATED)
-
-            else:
-                res['message'] = ' Note Doesnt Exists'  # Something wrong
-                res['success'] = False
-                return JsonResponse(res, status=status.HTTP_201_CREATED)
-
-        except CreateNotes.DoesNotExist:
-            print('Note doenst exists')
-            res['message'] = 'Note doesnt exists'
-            return JsonResponse(res, status=404)
-        except Exception as e:
-            print(e)
-            return JsonResponse(res, status=404)
-
-
-class getLabelOnNotes(APIView):
-    # @method_decorator(custom_login_required)
-    def dispatch(self, request):
-        auth_user = request.user.id
-        res = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            label_id = request.POST.get('label_id')
-            label = MapLabel.objects.filter(label_id=label_id).values()  # Filter down a queryset based on a model's
-            print("fdsf", label)
-            l = []  # Converting the query sets to a json format
-            for i in label:
-                l.append(i)
-            return JsonResponse(l, safe=False)
-        except Exception as e:
-            print(e)
-
-
-class removeLabelonNote(APIView):
-    @method_decorator(custom_login_required)
-    def dispatch(self, request, pk):
-        auth_user = request.user.id
-        res = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            if pk:
-                note = CreateNotes.objects.get(pk=pk,user=auth_user)  # reterieve the pk of a particular note
-                id = request.POST.get('id')  # reterive the id of a particular label
-                label = Labels.objects.get(id=id,user_id=auth_user)
-                print("------------", id)
-                print("**********", label)
-                maplabel = MapLabel.objects.filter(note_id=note, label_id=label)  # filter the note and label
-                print("....", maplabel)
-                res['data'] = note.id
-                maplabel.delete()
-                    # message of passing data in a SMD format
-                res['message'] = 'Labels are remove to a requested note'
-                res['success'] = True
-                return JsonResponse(res, status=status.HTTP_201_CREATED)
-
-            else:
-                res['message'] = 'No Notes'
-                res['success'] = False
-                return JsonResponse(res, status=status.HTTP_201_CREATED)
-        except CreateNotes.DoesNotExist:
-            print('Note doenst exists')
-            res['message'] = 'Note doesnt exists'
-            return JsonResponse(res, status=404)
-
-        except Exception as e:
-            print(e)
-            return JsonResponse(res, status=404)
-
-
-class remainder(APIView):
-    def get(self, request):
-        res = {}
-        remainder_fields = CreateNotes.objects.filter(remainder__isnull=False).values()
-        try:
-            if remainder_fields:
-                remainder = []
-                for i in remainder_fields:
-                    remainder.append(i)
-                return JsonResponse(remainder, safe=False)
-            else:
-                res['message'] = "No remainder set"
-                res['success'] = 'False'
-                return JsonResponse(res, safe=False)
-        except Exception as e:
-            res['message'] = "Doesnt Exists"
-            res['success'] = 'False'
-            return JsonResponse(res, safe=False)
 
 # ***************************************************************************************************
 
@@ -840,7 +827,6 @@ def showarchive(request):  # Archive Show
     try:
         if notes:
             return render(request, 'notes/index1.html', {'notes': notes})
-
     except notes.DoesNotExist:
         res['message'] = "No Notes in Archive"
         # res['success']=False
@@ -918,18 +904,6 @@ class PostListAPIView(generics.ListAPIView):  # Viweing the ListAPI Views that
             return JsonResponse(res, status=404)
 
 
-# @custom_login_required
-def get_all_notes(request):
-    element = request.POST.get('email')
-    print(element)
-    ele = request.POST['id']
-    print('Elements', ele)
-    items = CreateNotes.objects.filter(pk=ele).values()
-    print(items)
-    auth_user = authorize(request)
-    print("User Got it", auth_user)
-    return HttpResponse(items)
-
 class Login(APIView):
     def post(self, request):
         res = {}
@@ -964,10 +938,10 @@ class Login(APIView):
                         return JsonResponse(res, status=status.HTTP_201_CREATED)
                     except Exception as e:  # Invalid
                         result = {'error1': 'please provide an valid email and a password'}
-                        return JsonResponse(result)
+                        return JsonResponse(result, safe=False)
                 else:
                     res['message'] = "User is Inactive"
-                    return JsonResponse(res)
+                    return JsonResponse(res, safe=False)
             else:
                 res['message'] = 'Username or Password is not correct'  # Invalid login details
                 messages.error(request, 'Invalid login details')
@@ -976,3 +950,13 @@ class Login(APIView):
             print(e)
 
 
+def upload_profilenew(request):
+    try:
+        file = request.FILES['pic']  # Uploading a Pic
+        tag_file = request.POST.get('email')
+        valid_image = imghdr.what(file)
+        print("Image Extension", valid_image)
+        return upload_image(file, tag_file, valid_image)
+    except Exception as e:
+        print(e)
+        return HttpResponse(e)

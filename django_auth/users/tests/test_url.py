@@ -16,13 +16,13 @@ class TestUrls:
         path=reverse('createnote')
         assert resolve(path).view_name=='createnote'
 
-    def readnote(self):
-        path=reverse('readnote',kwargs={'pk':1})
-        assert resolve(path).view_name=='readnote'
+    def getnote(self):
+        path=reverse('getnote',kwargs={'pk':1})
+        assert resolve(path).view_name=='getnote'
 
-    def table(self):
-        path=reverse('table')
-        assert resolve(path).view_name=='table'
+    def updatenote(self):
+        path=reverse('updatenote')
+        assert resolve(path).view_name=='updatenote'
 
 
 
