@@ -39,7 +39,7 @@ class User(AbstractBaseUser, PermissionsMixin):  # User model is the built-in Dj
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
-
+    image = models.ImageField(default=None, null=True)
     object = UserManager()  # Created the object of the User Manager module which contains the fields..
 
     USERNAME_FIELD = 'email'

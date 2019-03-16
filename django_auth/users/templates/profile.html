@@ -5,7 +5,7 @@
 </body>
 </head>
 </html>
-<img src="https://s3.ap-south-1.amazonaws.com/fundoobucket/{{ user.email }}.jpeg
+<img src="https://s3.ap-south-1.amazonaws.com/fundoobucket/{{ user.email }}
 " alt="no pic to display" height="200" width="300"/>
 
 {% block content %}
@@ -14,8 +14,16 @@
 
 <input type="text" name="email" required />
 
-  <input type="submit" />
-  <a href="{% url 'logout' %}">Logout</a>
+  <a href="{% url 'logout' %}">Logout</a><br>
+
+<input type="submit" />
+
+</form>
+<form method="post" enctype="multipart/form-data" action=/delete_profile/>{% csrf_token %}
+<input type="text" name="email" required />
+
+<input type="submit" />
+
 </form>
 <script>
   localStorage.setItem('token',("{{token}}"));

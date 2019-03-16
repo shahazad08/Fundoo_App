@@ -45,18 +45,17 @@ from django.urls import reverse
 from django.core.cache.backends.base import DEFAULT_TIMEOUT  # Setting a time for a cache to store
 from .custom_decorators import custom_login_required
 from django.utils.decorators import method_decorator
-from .services import redis_information, upload_image
+from .services import redis_information, upload_image,delete_from_s3
 from self import self
 import imghdr
+from PIL import Image
 
 
 def home(request):
     return render(request, "home.html", {})  # home page
 
-
 def log_me(request):
     return render(request, 'user_login.html', {})
-
 
 def signup(request):
     if request.method == 'POST':  # IF method id POST
@@ -81,7 +80,6 @@ def signup(request):
     else:
         form = SignupForm()
     return render(request, 'signup.html', {'form': form})
-
 
 class Registerapi(CreateAPIView):
     serializer_class = UserSerializer
@@ -133,18 +131,21 @@ def activate(request, uidb64, token):
     try:
         uid = force_text(urlsafe_base64_decode(uidb64))  # UserId for a decoding
         user = User.object.get(pk=uid)
+        if user is not None and account_activation_token.check_token(user, token):  # if its a valid token
+            user.is_active = True  # User is Active
+            user.save()
+            return render(request, 'user_login.html')
+        else:
+            return HttpResponse('Activation link is invalid!')
     except(TypeError, ValueError, OverflowError, User.DoesNotExist):
         user = None
-    if user is not None and account_activation_token.check_token(user, token):  # if its a valid token
-        user.is_active = True  # User is Active
-        user.save()
-        return render(request, 'user_login.html')
-    else:
-        return HttpResponse('Activation link is invalid!')
+
 
 
 @api_view(['POST'])
 @require_POST
+
+
 def logins(request):
     res = {}
     res['message'] = 'Something bad happend'
@@ -164,6 +165,17 @@ def logins(request):
             if user.is_active:  # If a User is active
                 login(request, user)  # Login maintains a request and a user
                 try:
+                    payload = {
+                        # 'id': User.id,
+                        'email': email,
+                        'password': password,
+                    }
+                    token_encode = jwt.encode(payload, "secret_key", algorithm='HS256').decode('utf-8')
+                    res['message'] = "Login Sucessfull"
+                    res['success'] = True
+                    res['data'] = token_encode
+
+                    redis_information.set_token(self, 'token', res['data'])
                     return render(request, 'profile.html')  # After Sucessfull returns to the profile page
                 except Exception as e:  # Invalid
                     result = {'error1': 'please provide an valid email and a password'}
@@ -179,28 +191,13 @@ def logins(request):
         print(e)
 
 
-# /********************************Authorization Header*********************************************************
-def authorize(request):
-    print(request.META.get('HTTP_AUTHORIZATION'))
-    token = request.META.get('HTTP_AUTHORIZATION')
-    token_split = token.split(' ')
-    token_get = token_split[1]
-    print("My Token:", token_get)
-
-    token_decode = jwt.decode(token_get, "secret_key", algorithms=['HS256'])
-    eid = token_decode.get('email')
-    user_id = User.object.get(email=eid)
-    print("Email", eid)
-    print ("User id", user_id.id)
-    print(token_decode)
-    return user_id.id
-
 
 # /***********************************************************************************************
 def exit(request):  # For a Logout
     # logout(request)
     return render(request, "home.html")
 
+import re
 
 class createnotes(APIView):
     '''
@@ -208,18 +205,17 @@ class createnotes(APIView):
     '''
 
     @method_decorator(custom_login_required)  # Decorator is called with respective to token user
-    def dispatch(self, request, *args, **kwargs):
+    def dispatch(self, request):
         res = {}
-        auth_user = request.user.id  # get the id of a specific user through token
+        auth_user = request.user_id.id  # get the id of a specific user through token
         try:
+            # title = re.compile(regex=r"^[a-zA-Z0-9.' ']+$", required=True)  # Title can be a indicates number,name,spaces
             title = request.POST.get('title')  # get the title
             description = request.POST.get('description')  # get the description
             color = request.POST.get('color')  # get the color
             label = request.POST.get('label')  # get the label
-            collaborate = request.POST.get('collaborate')  # get the collaborate
             remainder = request.POST.get('remainder')  # get the raminder
-            notes = CreateNotes(title=title, description=description, color=color, label=label, user_id=auth_user,
-                                remainder=remainder)  # assigned in the notes
+            notes = CreateNotes(title=title, description=description, color=color, label=label, user_id=auth_user,                                remainder=remainder)  # assigned in the notes
             if title != "" and description != "":  # if not null
                 notes.save()  # add in a db
                 res['message'] = 'Notes are added in a database'
@@ -242,7 +238,8 @@ class getnote(APIView):
     @method_decorator(custom_login_required)  # Decorator is called through a token
     def dispatch(self, request):
         res = {}
-        a_user = request.user.id  # get the id though a token
+        a_user = request.user_id.id  # get the id though a token
+        print("Users",a_user)
         try:
             read_notes = CreateNotes.objects.filter(user=a_user).values()  # display the notes of a particular user
             print("****", read_notes)
@@ -274,10 +271,9 @@ class deletenote(APIView):
     """
     This module is to delete a note of a specific user
     """
-
     @method_decorator(custom_login_required)  # Get the decorator of a specific user
     def dispatch(self, request):
-        auth_user = request.user.id
+        auth_user = request.user_id.id
         res = {}
         res['message'] = 'Something bad happened'
         res['success'] = False
@@ -314,7 +310,7 @@ class delete_from_trash(APIView):
 
     @method_decorator(custom_login_required)
     def dispatch(self, request):
-        auth_user = request.user.id
+        auth_user = request.user_id.id
         res = {}
         res['message'] = 'Something bad happened'
         res['success'] = False
@@ -347,7 +343,7 @@ class restorenote(APIView):
 
     @method_decorator(custom_login_required)
     def dispatch(self, request):
-        auth_user = request.user.id
+        auth_user = request.user_id.id
         res = {}
         res['message'] = 'Something bad happened'
         res['success'] = False
@@ -375,41 +371,39 @@ class restorenote(APIView):
             return JsonResponse(res, status=404)
 
 
-class updatenote(APIView):
-    """
-        This module is to Update a note of a specific user
-    """
+@custom_login_required  # Get a decorator
+def updatenote(request):
+    auth_user = request.user_id.id # Get a user
+    print('User', auth_user)
+    # auth_user=authorize(request)
+    res = {}
+    res['message'] = 'Something bad happened'
+    res['success'] = False
+    try:
+        id = request.POST.get('id', None)  # Accept a Id to be accepted
+        if id is None:  # If id is None
+            raise Exception('Id is required')  # Raise the exception
+        else:
+            notes = CreateNotes.objects.get(pk=id, user=auth_user)  # Update the particular note from a user
+            title = request.POST.get('title')  # Updates the tile or any user fields
+            des = request.POST.get('description')
+            color = request.POST.get('color')
+            remainder = request.POST.get('remainder')
 
-    @method_decorator(custom_login_required)  # Get a decorator
-    def dispatch(self, request):
-        auth_user = request.user.id  # Get a user
-        res = {}
-        res['message'] = 'Something bad happened'
-        res['success'] = False
-        try:
-            id = request.POST.get('id', None)  # Accept a Id to be accepted
-            if id is None:  # If id is None
-                raise Exception('Id is required')  # Raise the exception
-            else:
-                notes = CreateNotes.objects.get(pk=id, user=auth_user)  # Update the particular note from a user
-                title = request.POST.get('title')  # Updates the tile or any user fields
-                des = request.POST.get('description')
-                color = request.POST.get('color')
-                remainder = request.POST.get('remainder')
+            notes.title = title  # Assign the updated fields to a requsted note
+            notes.description = des
+            notes.color = color
+            notes.remainder = remainder
+            notes.save()  # save in a db
+            res['message'] = "Update Successfully"
+            res['success'] = True
+            return JsonResponse(res, status=204)
+    except Exception as e:  # Handle the exception
+        print(e)
+        res['message'] = 'Note doesnt exists'
+        res['sucess'] = 'False'
+        return JsonResponse(res, status=404)
 
-                notes.title = title  # Assign the updated fields to a requsted note
-                notes.description = des
-                notes.color = color
-                notes.remainder = remainder
-                notes.save()  # save in a db
-                res['message'] = "Update Successfully"
-                res['success'] = True
-                return JsonResponse(res, status=204)
-        except Exception as e:  # Handle the exception
-            print(e)
-            res['message'] = 'Note doesnt exists'
-            res['sucess'] = 'False'
-            return JsonResponse(res, status=404)
 
 
 class archivenote(APIView):  # Delete a Note
@@ -419,9 +413,9 @@ class archivenote(APIView):  # Delete a Note
 
     @method_decorator(custom_login_required)  # Get a decorator
     def dispatch(self, request):
-        auth_user = request.user.id  # Request for a specific user
+        auth_user = request.user_id.id  # Request for a specific user
         res = {}
-        res['data'] = {}  # If any fault Exception, shows the message
+        # If any fault Exception, shows the message
         res['message'] = 'Something bad happened'
         res['success'] = False
         try:
@@ -430,7 +424,7 @@ class archivenote(APIView):  # Delete a Note
                 raise Exception('id is required')
             else:
                 note = CreateNotes.objects.get(pk=id, user=auth_user)  # get particular note from a id
-                if note.is_archived == False:  # if archived is false, change it to true, as to move in a archived
+                if note.is_archived==False:  # if archived is false, change it to true, as to move in a archived
                     note.is_archived = True
                     note.save()  # save in a db
                     res['message'] = "Selected Note has been moved to Archive"
@@ -438,12 +432,47 @@ class archivenote(APIView):  # Delete a Note
                     res['data'] = note.id
                     return JsonResponse(res, status=200)  # return result
                 else:
-                    note.is_archived = False  # if its not in a archive then note is in Dashboard
-                    note.save()
-                    res['message'] = "Note has been moved to Dashboard"
+                    raise Exception()
+
+        except Exception as e:  # catch the exception as if the note exists
+            print('Note doent exists')
+            res['message'] = 'Note doesnt exists'
+            return JsonResponse(res, status=404)
+
+
+class notarchivenote(APIView):  # Delete a Note
+    """
+    This module is to archive a note of a specific user
+    """
+
+    @method_decorator(custom_login_required)  # Get a decorator
+    def dispatch(self, request):
+
+        auth_user = request.user_id.id  # Request for a specific user
+        print('User',auth_user)
+        res = {}
+        # If any fault Exception, shows the message
+        res['message'] = 'Something bad happened'
+        res['success'] = False
+        try:
+            """
+                         :param request:
+                         :return:
+                         """
+            id = request.POST.get('id', None)
+            if id is None:
+                raise Exception('id is required')
+            else:
+                note = CreateNotes.objects.get(pk=id, user=auth_user)  # get particular note from a id
+                if note.is_archived:  # if archived is false, change it to true, as to move in a archived
+                    note.is_archived = False
+                    note.save()  # save in a db
+                    res['message'] = "Selected Note has been moved to Dashboard"
                     res['success'] = True
                     res['data'] = note.id
-                    return JsonResponse(res, status=204)
+                    return JsonResponse(res, status=200)  # return result
+                else:
+                    raise Exception()
 
         except Exception as e:  # catch the exception as if the note exists
             print('Note doent exists')
@@ -458,7 +487,7 @@ class colornote(APIView):  # Delete a Note
 
     @method_decorator(custom_login_required)  # Get a decorator
     def dispatch(self, request):
-        auth_user = request.user.id  # Get a specific user
+        auth_user = request.user_id.id # Get a specific user
         res = {}
         res['message'] = 'Something bad happened'  # If any fault Exception, shows the message
         res['success'] = False
@@ -486,7 +515,7 @@ class ispinned(APIView):
 
     @method_decorator(custom_login_required)  # Get a decorator
     def dispatch(self, request):
-        auth_user = request.user.id  # get a specific user
+        auth_user = request.user_id.id # get a specific user
         res = {}
         res['message'] = 'Something bad happened'  # If any fault Exception, shows the message
         res['success'] = False
@@ -504,25 +533,49 @@ class ispinned(APIView):
                     res['data'] = note.id
                     return JsonResponse(res, status=200)
                 else:
-                    note.is_pinned = False  # if not pinned, save as it is
-                    note.save()
-                    res['message'] = "Notes has been Move to Unpinned"
-                    res['success'] = False
-                    res['data'] = note.id
-                    return JsonResponse(res, status=204)
+                    raise Exception()
         except Exception as e:  # catch exception if note doesnt exists
             res['message'] = 'Note doesnt exists'
             return JsonResponse(res, status=404)
 
 
-class copynote(APIView):
+class unpinned(APIView):
     """
-        This module is set a copy of a note of a specific user
+     This module is set a pinned to a note of a specific user
     """
 
     @method_decorator(custom_login_required)  # Get a decorator
     def dispatch(self, request):
-        auth_user = request.user.id  # get note with given id
+        auth_user = request.user_id.id  # get a specific user
+        res = {}
+        res['message'] = 'Something bad happened'  # If any fault Exception, shows the message
+        res['success'] = False
+        try:
+            id = request.POST.get('id', None)  # get a id of a user
+            if id is None:  # If id is None
+                raise Exception('Id is required')  # Raise a Exception
+            else:
+                note = CreateNotes.objects.get(pk=id, user=auth_user)  # get a requested pk
+                if note.is_pinned:  # if not pinned
+                    note.is_pinned = False  # change it to pin
+                    note.save()  # save in a db
+                    res['message'] = "Notes has been Move to Unpinned" # message in a SMD format
+                    res['success'] = True
+                    res['data'] = note.id
+                    return JsonResponse(res, status=200)
+                else:
+                    raise Exception()
+        except Exception as e:  # catch exception if note doesnt exists
+            res['message'] = 'Note doesnt exists'
+            return JsonResponse(res, status=404)
+
+class copynote(APIView):
+    """
+        This module is set a copy of a note of a specific user
+    """
+    @method_decorator(custom_login_required)  # Get a decorator
+    def dispatch(self, request):
+        auth_user = request.user_id.id  # get note with given id
         res = {}
         res['message'] = 'Something bad happened'
         res['success'] = False
@@ -577,6 +630,7 @@ def deletelabel(request, pk):  # Delete a Note
             This module is delete a Label of a specific user
     """
     a_user = request.user_id.id
+    print('User',a_user)
     res = {}
     print('test user', request.user_id)
     res['message'] = 'Something bad happened'
@@ -603,7 +657,7 @@ class updatelabel(APIView):
        """
     @method_decorator(custom_login_required)
     def dispatch(self, request):
-        auth_user = request.user.id
+        auth_user = request.user_id.id
         res = {}
         res['message'] = 'Something bad happened'
         res['success'] = False
@@ -633,7 +687,7 @@ class addLabelOnNote(APIView):
      """
     @method_decorator(custom_login_required) # Get a decorator
     def dispatch(self, request, pk):    # request a particular note of a specific user
-        auth_user = request.user.id # get a requested if from a token
+        auth_user = request.user_id.id # get a requested if from a token
         res = {}
         res['message'] = 'Something bad happened' # raise a exception when some unhandled exception occurs
         res['success'] = False
@@ -695,7 +749,7 @@ class removeLabelonNote(APIView):
     """
     @method_decorator(custom_login_required) # Get a decorator
     def dispatch(self, request, pk):  # request a particular note of a specific user
-        auth_user = request.user.id # get a id of from a header token
+        auth_user = request.user_id.id # get a id of from a header token
         res = {}
         res['message'] = 'Something bad happened'  # raise a exception when unhandled occurs
         res['success'] = False
@@ -745,7 +799,8 @@ class createcollaborator(APIView):
     """
     @method_decorator(custom_login_required)
     def dispatch(self, request):  # get the require pk
-        a_user = request.user.id
+        a_user = request.user_id.id
+        print("User",a_user)
         print(a_user)
         res = {}
         res['message'] = 'Something bad happend'
@@ -789,7 +844,7 @@ class deletecollaborator(APIView):
      """
     @method_decorator(custom_login_required) # get the decorator from a token
     def dispatch(self, request):
-        auth_user = request.user.id # get the requested id
+        auth_user = request.user_id.id # get the requested id
         res = {}
         res['message'] = 'Something bad happend' # raise the exception if bad happens
         res['success'] = False
@@ -820,7 +875,6 @@ class deletecollaborator(APIView):
 
 # ***************************************************************************************************
 
-
 def showarchive(request):  # Archive Show
     res = {}
     notes = CreateNotes.objects.all().order_by('-created_time')  # Sort the Notes according to the time
@@ -833,7 +887,6 @@ def showarchive(request):  # Archive Show
     except Exception as e:
         print(e)
         return HttpResponse(res, status=404)
-
 
 def trash(request):
     res = {}
@@ -849,7 +902,6 @@ def trash(request):
         print(e)
         return HttpResponse(res, status=404)
 
-
 def showpinned(request):
     res = {}
     notes = CreateNotes.objects.all().order_by('-created_time')
@@ -861,7 +913,6 @@ def showpinned(request):
         # res['success'] = False
         print(e)
         return HttpResponse(res, status=404)
-
 
 def showlabels(request):
     res = {}
@@ -878,8 +929,6 @@ def showlabels(request):
 
 def table(request):  # Display the contents of the tables using a Jinga Template
     notes = CreateNotes.objects.all().order_by('-created_time')  # Sort the Notes according to the time
-    # pin = notes.is_pinned
-
     return render(request, 'notes/index.html', {'notes': notes})
 
 
@@ -902,7 +951,6 @@ class PostListAPIView(generics.ListAPIView):  # Viweing the ListAPI Views that
             res['message'] = 'Empty'
             res['success'] = False
             return JsonResponse(res, status=404)
-
 
 class Login(APIView):
     def post(self, request):
@@ -949,14 +997,73 @@ class Login(APIView):
         except Exception as e:
             print(e)
 
-
 def upload_profilenew(request):
+    res={}
+    token = redis_information.get_token(self, 'token')  # Redis Cache GET
+    token_decode = jwt.decode(token, "secret_key", algorithms=['HS256'])
+    eid = token_decode.get('email')  # Additional code of a decorator to get an email
+    user = User.object.get(email=eid)
+    print("IDDDDDDDD",user)
+    # user = User.object.get(id=user_id.id)
+    # user=user_id.id
+    print ('user-----------', user)
     try:
         file = request.FILES['pic']  # Uploading a Pic
         tag_file = request.POST.get('email')
+        print('keysysy',tag_file)
         valid_image = imghdr.what(file)
-        print("Image Extension", valid_image)
-        return upload_image(file, tag_file, valid_image)
+        print("vi", valid_image)
+        if str(user)==tag_file:
+            if valid_image:
+                upload_image(file, tag_file, valid_image)
+                user.image = str(file)
+                print("Fileeeeeee", valid_image)
+                print("Imagee", user.image)
+                user.save()
+                print('saved')
+                print("Image Extension", valid_image)
+                res['message'] = "Sucessfully Uploaded the Image"
+                res['Sucess'] = True
+                return JsonResponse(res, status=200)
+            else:
+                res['message'] = "Invalid Image"
+                res['Sucess'] = False
+                return JsonResponse(res, status=404)
+        else:
+            res['message'] = "Invalid"
+            res['Sucess'] = False
+            return JsonResponse(res, status=404)
     except Exception as e:
         print(e)
         return HttpResponse(e)
+
+def delete_profile(request):
+    """This method is used to delete any object from s3 bucket """
+    token = redis_information.get_token(self, 'token')  # Redis Cache GET
+    token_decode = jwt.decode(token, "secret_key", algorithms=['HS256'])
+    eid = token_decode.get('email')  # Additional code of a decorator to get an email of a user
+    user = User.object.get(email=eid)
+    # user = User.object.get(id=user_id.id)
+    print('user-----------', user)
+    tag_file = request.POST.get('email')
+    res={}
+    try:
+        print('keys_to_delete', tag_file)
+        print("Usr******",type(user))
+        print("TF----",type(tag_file))
+        print('Users',user)
+        if str(user)==tag_file:
+            delete_from_s3(tag_file)
+            user.image=" "
+            user.save()
+            print("Delete It")
+            res['message'] = "Succesfully Deleted"
+            res['Sucess'] = True
+            return JsonResponse(res, status=200)
+        else:
+            res['message'] = "Not Deleted"
+            res['Sucess'] = False
+            return JsonResponse(res, status=404)
+    except Exception as e:
+        return HttpResponse('Invalid')
+

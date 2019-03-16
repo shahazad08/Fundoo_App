@@ -25,6 +25,8 @@ urlpatterns = [
     path('log_user/', views.logins, name='log_user'),
     path('logout/', views.exit, name='logout'),
     path('upload_profilenew/', views.upload_profilenew, name='upload_profilenew'),
+    path('delete_profile/', views.delete_profile, name='delete_profile'),
+
     # path('upload_profileimage/', views.upload_profileimage, name='upload_profileimage'),
 
     url(r'^password_reset/$', auth_views.PasswordResetView.as_view(), name='password_reset'),
@@ -33,15 +35,17 @@ urlpatterns = [
         auth_views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     url(r'^reset/done/$', auth_views.PasswordResetCompleteView.as_view(), name='password_reset_complete'),
 
-
     path('api/createnotes/', views.createnotes.as_view(), name='createnotes'),  # For Create
     path('api/deletenote/', views.deletenote.as_view(), name='deletenote'),  # Delete with PK
     path('api/delete_from_trash/', views.delete_from_trash.as_view(), name='delete_from_trash'),  # Delete with PK
-    path('api/updatenote/', views.updatenote.as_view(), name='updatenote'),  # Update with Pk
+    path('api/updatenote/', views.updatenote, name='updatenote'),  # Update with Pk
     path('api/archivenote/', views.archivenote.as_view(), name='archivenote'),  # Update with Pk
+    path('api/notarchivenote/', views.notarchivenote.as_view(), name='notarchivenote'),  # Update with Pk
+
     path('api/restorenote/', views.restorenote.as_view(), name='restorenote'),  # Update with Pk
     path('api/colornote/', views.colornote.as_view(), name='colornote'),  # Update with Pk
     path('api/ispinned/', views.ispinned.as_view(), name='ispinned'),  # Update with Pk
+    path('api/unpinned/', views.unpinned.as_view(), name='unpinned'),  # Update with Pk
     path('api/showpinned/', views.showpinned, name='showpinned'),  # Update with Pk
     path('api/copynote/', views.copynote.as_view(), name='copynote'),  # Update with Pk
     path('api/table/', views.table, name='table'),  # Displays the Table data in a front view using jinga template

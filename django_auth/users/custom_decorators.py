@@ -12,8 +12,9 @@ def custom_login_required(function):
         token_decode = jwt.decode(token_get, "secret_key", algorithms=['HS256'])
         eid = token_decode.get('email')     # Additional code of a decorator to get an email
         user_id = User.object.get(email=eid)
-        entry = User.object.get(pk=user_id.id)
-        print(entry)
+        # entry = User.object.get(pk=user_id.id)
+        entry=user_id
+        print("User",entry)
         request.user_id = user_id
         if entry:
             return function(request, *args, **kwargs)

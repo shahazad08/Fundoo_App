@@ -1,5 +1,4 @@
 from rest_framework.validators import UniqueValidator
-
 from .models import User, CreateNotes,Labels
 from rest_framework import serializers  # Serializers allow complex data such as query sets and model instances to be
 # from rest_framework.pagination import PaginationSerializer
