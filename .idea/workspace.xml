@@ -10,6 +10,7 @@
       <change beforePath="$PROJECT_DIR$/django_auth/users/services.py" beforeDir="false" afterPath="$PROJECT_DIR$/django_auth/users/services.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/django_auth/users/templates/file_upload.html" beforeDir="false" afterPath="$PROJECT_DIR$/django_auth/users/templates/file_upload.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/django_auth/users/templates/home.html" beforeDir="false" afterPath="$PROJECT_DIR$/django_auth/users/templates/home.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/django_auth/users/templates/login.html" beforeDir="false" afterPath="$PROJECT_DIR$/django_auth/users/templates/login.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/django_auth/users/templates/password_reset_email.html" beforeDir="false" afterPath="$PROJECT_DIR$/django_auth/users/templates/password_reset_email.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/django_auth/users/templates/password_reset_form.html" beforeDir="false" afterPath="$PROJECT_DIR$/django_auth/users/templates/password_reset_form.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/django_auth/users/templates/profile.html" beforeDir="false" afterPath="$PROJECT_DIR$/django_auth/users/templates/profile.html" afterDir="false" />
@@ -90,8 +91,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/django_auth/users/templates/home.html">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="266">
-              <caret line="14" lean-forward="true" selection-start-line="14" selection-end-line="14" />
+            <state relative-caret-position="285">
+              <caret line="15" lean-forward="true" selection-start-line="15" selection-end-line="15" />
             </state>
           </provider>
         </entry>
@@ -417,7 +418,7 @@
     <editor active="true" />
     <layout>
       <window_info id="Favorites" order="0" sideWeight="0.5008264" side_tool="true" weight="0.1590909" />
-      <window_info active="true" content_ui="combo" id="Project" order="1" sideWeight="0.49917355" visible="true" weight="0.26880878" />
+      <window_info content_ui="combo" id="Project" order="1" sideWeight="0.49917355" visible="true" weight="0.26880878" />
       <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
       <window_info anchor="bottom" id="Event Log" order="0" sideWeight="0.5023511" side_tool="true" weight="0.39008266" />
       <window_info anchor="bottom" id="Python Console" order="1" weight="0.3289256" />
@@ -770,8 +771,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/django_auth/users/templates/home.html">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="266">
-          <caret line="14" lean-forward="true" selection-start-line="14" selection-end-line="14" />
+        <state relative-caret-position="285">
+          <caret line="15" lean-forward="true" selection-start-line="15" selection-end-line="15" />
         </state>
       </provider>
     </entry>
