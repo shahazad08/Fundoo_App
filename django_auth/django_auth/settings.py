@@ -18,7 +18,7 @@ SECRET_KEY = 'oz$*y0o9cc3eqj^u$!zl6tcbt3#z603w@c8c)2w=-sy(yy_a2^'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 AUTH_USER_MODEL = "users.User"
 
@@ -185,3 +185,4 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 CSRF_COOKIE_SECURE = False
+STATIC_ROOT = os.path.join(BASE_DIR, "static/")
