@@ -60,8 +60,8 @@ class CreateNotes(models.Model):
     color = models.CharField(default=None, max_length=50, blank=True, null=True)
     image = models.ImageField(default=None, null=True)
     trash = models.BooleanField(default=False)
-    is_pinned = models.NullBooleanField(blank=True, null=True, default=None)
-    label = models.CharField(max_length=50,default=None)
+    is_pinned = models.NullBooleanField(blank=True,default=False)
+    label = models.CharField(max_length=50,default=None,null=True)
     collaborate = models.ManyToManyField(User, null=True, blank=True, related_name='collaborated_user')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owner', null=True, blank=True)
 

@@ -7,9 +7,14 @@ from django.views.generic import TemplateView
 # admin.autodiscover()
 from users import views
 from django.contrib import auth
+from rest_framework.schemas import get_schema_view
+from rest_framework_swagger.renderers import SwaggerUIRenderer, OpenAPIRenderer
 
+schema_view = get_schema_view(title='Users API', renderer_classes=[OpenAPIRenderer, SwaggerUIRenderer])
 urlpatterns = [
     path('', TemplateView.as_view(template_name='home.html'), name='home'),  # for a home page
     path('admin/', admin.site.urls),  # for a admin login
-    path('', include('users.urls'))
+    path('', include('users.urls')),
+    url(r'^docs/', schema_view),
+    # url(r'^', schema_view, name="docs"),
 ]

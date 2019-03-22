@@ -13,8 +13,16 @@ admin.autodiscover()
 from users import views
 from django.contrib import auth
 from rest_framework_swagger.views import get_swagger_view
-schema_view = get_swagger_view(title='APIView')
+from rest_framework.schemas import get_schema_view
+from rest_framework.renderers import CoreJSONRenderer
+from rest_framework_swagger.renderers import SwaggerUIRenderer, OpenAPIRenderer
 
+# schema_view = get_swagger_view(title='APIView')
+
+schema_view = get_schema_view(
+    title='A Different API',
+    renderer_classes=[CoreJSONRenderer]
+)
 urlpatterns = [
     url(r'^$', views.signup),
     url(r'^signup/$', views.signup, name='signup'),
@@ -38,7 +46,7 @@ urlpatterns = [
     path('api/createnotes/', views.createnotes.as_view(), name='createnotes'),  # For Create
     path('api/deletenote/', views.deletenote.as_view(), name='deletenote'),  # Delete with PK
     path('api/delete_from_trash/', views.delete_from_trash.as_view(), name='delete_from_trash'),  # Delete with PK
-    path('api/updatenote/', views.updatenote, name='updatenote'),  # Update with Pk
+    path('api/updatenote/', views.updatenote.as_view(), name='updatenote'),  # Update with Pk
     path('api/archivenote/', views.archivenote.as_view(), name='archivenote'),  # Update with Pk
     path('api/notarchivenote/', views.notarchivenote.as_view(), name='notarchivenote'),  # Update with Pk
 
@@ -53,14 +61,14 @@ urlpatterns = [
 
     path('api/trash/', views.trash, name='trash'),  # Displays the Table data in a front view using jinga template
     path('api/page/', views.PostListAPIView.as_view(), name='page'),  # Paginate
-    path('api/create_label/', views.create_label, name='create_label'),  # Createlabel
-    path('api/deletelabel/<int:pk>/', views.deletelabel, name='deletelabel'),  # Deletelabel
+    path('api/create_label/', views.create_label.as_view(), name='create_label'),  # Createlabel
+    path('api/deletelabel/', views.deletelabel.as_view(), name='deletelabel'),  # Deletelabel
     path('api/updatelabel/', views.updatelabel.as_view(), name='updatelabel'),  # Updatelabel
     path('api/addLabelOnNote/<int:pk>/', views.addLabelOnNote.as_view(), name='addLabelOnNote'),
     path('api/getLabelOnNotes/', views.getLabelOnNotes.as_view(), name='getLabelOnNotes'),
     path('api/removeLabelonNote/<int:pk>/', views.removeLabelonNote.as_view(), name='removeLabelonNote'),
     # Displays the Labels data in a front view using jinga template
-    url(r'^docs/', schema_view),
+    # url(r'^docs/', schema_view),
 
     path('api/getnote/', views.getnote.as_view(), name='getnote'),
     path('api/showlabels/', views.showlabels, name='showlabels'),
@@ -70,6 +78,7 @@ urlpatterns = [
     path('api/remainder/', views.remainder.as_view(), name='remainder'),
     #get_all_notes
     path('api/login/', views.Login.as_view(), name='login'),
+    # path('api/dummy_site/', views.dummy_site.as_view(), name='dummy_site'),
 
 
 

@@ -14,6 +14,8 @@ class UserSerializer(serializers.ModelSerializer):  # Created the User Serialize
     # email = serializers.EmailField(validators=[UniqueValidator(queryset=User.object.all())])
     email = serializers.RegexField(regex=r"^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,4})$",
                                    required=True)
+    first_name = serializers.CharField(max_length=30)
+    last_name = serializers.CharField(max_length=30)
 
     class Meta:  # We have  use of Meta class is simply to provide metadata to the ModelForm class.
         model = User  # Shows that the User fields contain the model class
