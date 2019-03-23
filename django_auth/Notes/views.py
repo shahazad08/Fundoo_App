@@ -470,8 +470,8 @@ class collaborator(APIView):
     @method_decorator(custom_login_required)
     def post(self, request):  # get the require pk
         a_user = request.user_id.id
-        print("User",a_user)
-        print(a_user)
+
+        
         res = {}
         res['message'] = 'Something bad happend'
         res['success'] = False
