@@ -57,13 +57,23 @@ JWT_AUTH = {
 
 }
 
+# CACHES = {
+#     'default': {
+#         'BACKEND': 'django_redis.cache.RedisCache',
+#         'LOCATION': 'redis://127.0.0.1:6379/',
+#         'OPTIONS': {
+#             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+#         }
+#     }
+# }
+
 
 CACHES = {
     'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/',
+        'BACKEND': os.getenv("BACKEND"),
+        'LOCATION': os.getenv("LOCATION"),
         'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CLIENT_CLASS': os.getenv("CLIENT_CLASS"),
         }
     }
 }
@@ -71,7 +81,6 @@ CACHES = {
 CACHE_TTL = 60 * 15
 
 INSTALLED_APPS = [
-    'users',
     # 'Notes',
     'django.contrib.auth',
     # 'django.admin_view_permission',
@@ -82,7 +91,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework_swagger',
     'rest_framework',
-    'django_filters'
+    'django_filters',
+    'users'
 ]
 
 MIDDLEWARE = [
@@ -138,13 +148,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'django_auth.wsgi.application'
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql_psycopg2',
+#         'NAME': 'mydb',
+#         'USER': 'dbuser',
+#         'PASSWORD': 'password',
+#         'HOST': 'localhost',
+#         'PORT': '',
+#     }
+# }
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'mydb',
-        'USER': 'dbuser',
-        'PASSWORD': 'password',
-        'HOST': 'localhost',
+        'NAME': os.getenv("NAME",""),
+        'USER': os.getenv("USER",""),
+        'PASSWORD': os.getenv("PASSWORD",""),
+        'HOST': os.getenv("HOST",""),
         'PORT': '',
     }
 }
