@@ -16,12 +16,11 @@ import jwt
 from PIL import Image
 s3 = boto3.client('s3')  # Connection for S3
 def upload_image(file, tag_file, valid_image):
-    """This method is used to upload the images to Amazon s3 bucket"""
+
     try:
         if valid_image:  # If Image is Valid
             key = tag_file  # Assign the Key
             s3.upload_fileobj(file, 'fundoobucket', Key=key)  # Upload the image in a S3
-            # print("Filesss", type(str(file)))
     except Exception as e:
         print(e)
 
